@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Tempo de Reação</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f0f0;
+            overflow: hidden; /* Evita scroll desnecessário */
+        }
+
+        .game-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Alinha conteúdo a partir do topo */
+            align-items: center;
+            padding: 0; /* Remove todo padding para full topo */
+            text-align: center;
+            position: relative;
+            overflow-y: auto; /* Permite scroll se conteúdo exceder altura */
+        }
+
+        .content-wrapper {
+            max-width: 600px;
+            width: 100%;
+            padding: 20px; /* Padding lateral e topo para conteúdo abaixo do botão */
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .stats-table {
+            width: 100%;
+            margin: 20px 0; /* Centraliza e adiciona margem */
+            font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stats-table th, .stats-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .stats-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .stats-table caption {
+            padding: 10px;
+            font-weight: 600;
+            caption-side: top;
+        }
+
+        #prompt {
+            width: 100%; /* Ocupa toda a largura sem gaps laterais */
+            height: 50vh; /* Espaço maior para melhor visualização (50% da altura da tela) */
+            min-height: 250px; /* Mínimo para telas pequenas */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: clamp(1.5rem, 8vw, 3rem); /* Fonte maior para visibilidade */
+            font-weight: 700;
+            margin: 0 0 0 0; /* Sem margens, flush com topo */
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none; /* Impede seleção de texto */
+            touch-action: manipulation; /* Otimiza toques em mobile */
+            position: relative;
+            z-index: 1;
+            border: none; /* Remove bordas completamente */
+            border-radius: 0; /* Remove cantos arredondados para bordas retas e full */
+        }
+
+        /* Estado inicial: Espera */
+        .wait {
+            background-color: #e0e0e0;
+            color: #666;
+        }
+
+        /* Momento ideal: Fundo verde para feedback visual condicional */
+        .click-now {
+            background-color: #28a745 !important; /* Verde para o 'momento ideal' */
+            color: white;
+            animation: pulse 0.5s ease-in-out infinite alternate; /* Pulso sutil para urgência */
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.5); /* Brilho para destaque */
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.02); }
+        }
+
+        /* Erro: Clique prematuro */
+        .too-soon {
+            background-color: #dc3545;
+            color: white;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* Estado de resumo: Fundo verde claro para resultado, layout compacto e responsivo */
+        #prompt.result {
+            background-color: #d4edda !important;
+            color: #155724;
+            /* Fonte em proporção legível: suficiente para leitura, mas compacta */
+            font-size: clamp(0.9rem, 1.8vw, 1.1rem);
+            line-height: 1.25;
+            justify-content: flex-start; /* Alinha ao topo para fluxo natural */
+            align-items: flex-start;
+            padding: 12px 14px; /* Padding confortável para leitura */
+            gap: 8px;
+            text-align: left;
+            cursor: default;
+            overflow: auto; /* Permite rolagem se o conteúdo exceder o espaço */
+            max-height: 42vh; /* Limita altura para manter o layout estável */
+            word-break: break-word; /* Evita estouro de layout por palavras longas */
+        }
+
+        #prompt.result strong {
+            font-size: clamp(1.05rem, 2.4vw, 1.4rem); /* Título claro e hierárquico */
+            display: block;
+            margin-bottom: 8px;
+            text-align: center;
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        #prompt.result .summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.4);
+            padding: 4px 6px; /* Leve aumento para legibilidade */
+            border-radius: 3px;
+            margin-bottom: 4px;
+            gap: 8px;
+        }
+
+        #prompt.result .summary-item:last-child {
+            margin-bottom: 0;
+        }
+
+        #prompt.result .summary-label {
+            font-weight: 500;
+            color: #155724;
+            flex: 0 0 48%; /* Espaço reservado para etiqueta */
+            font-size: 1rem;
+        }
+
+        #prompt.result .summary-value {
+            font-weight: 600;
+            color: #28a745;
+            text-align: right;
+            flex: 0 0 50%;
+            font-size: 1rem;
+        }
+
+        #prompt.result button {
+            padding: 6px 8px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: clamp(0.5rem, 1.0vw, 0.65rem);
+            font-weight: 600;
+            transition: background-color 0.3s;
+            touch-action: manipulation;
+            align-self: center;
+            margin-top: 6px;
+            width: 100%;
+            max-width: 140px;
+        }
+
+        /* Novo layout do resumo (grid) */
+        #prompt.result .summary-grid {
+            display: grid;
+            gap: 8px;
+            width: 100%;
+        }
+
+        #prompt.result .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.45);
+            padding: 8px 10px;
+            border-radius: 6px;
+            box-shadow: none;
+        }
+
+        #prompt.result .summary-label {
+            font-weight: 600;
+            color: #155724;
+            font-size: 1.05rem;
+        }
+
+        #prompt.result .summary-value {
+            font-weight: 700;
+            color: #155724;
+            text-align: right;
+            font-size: 1.05rem;
+        }
+
+        #prompt.result .summary-meta {
+            display: block;
+            font-size: 0.78rem;
+            color: #155724;
+            opacity: 0.85;
+            font-weight: 500;
+        }
+
+        #prompt.result .summary-note {
+            margin-top: 10px;
+            font-size: 0.95rem;
+            color: #155724;
+            text-align: center;
+            opacity: 0.95;
+        }
+
+        .result button:hover,
+        .result button:active {
+            background-color: #0056b3;
+        }
+
+        p {
+            font-size: clamp(0.9rem, 3vw, 1rem);
+            color: #666;
+            margin-bottom: 20px;
+            max-width: 80%;
+        }
+
+        #restart {
+            padding: 15px 30px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: clamp(1rem, 4vw, 1.2rem);
+            font-weight: 600;
+            transition: background-color 0.3s;
+            touch-action: manipulation;
+            margin: 20px 0;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        #restart:hover,
+        #restart:active {
+            background-color: #0056b3;
+        }
+
+        #best-time {
+            font-size: clamp(0.8rem, 2.5vw, 0.9rem);
+            color: #666;
+            margin: 10px 0;
+            max-width: 80%;
+        }
+
+        /* Responsividade: Adapta a telas mobile e desktop */
+        @media (max-width: 768px) {
+            .content-wrapper {
+                padding: 10px; /* Padding lateral menor em mobile */
+            }
+            #prompt {
+                height: 40vh; /* Ajusta em mobile para caber melhor */
+                min-height: 200px;
+                font-size: clamp(1.2rem, 7vw, 2.5rem);
+            }
+            #prompt.result {
+                /* Tamanho reduzido em mobile, porém legível */
+                font-size: clamp(0.85rem, 2.2vw, 1rem);
+                padding: 10px 8px;
+                gap: 6px;
+            }
+            #prompt.result strong {
+                font-size: clamp(0.95rem, 2.0vw, 1.15rem);
+            }
+            #prompt.result .summary-item {
+                flex-direction: column;
+                align-items: flex-start;
+                text-align: left;
+                gap: 6px;
+                padding: 6px 8px;
+            }
+            #prompt.result .summary-value {
+                text-align: left;
+                font-size: 1rem;
+            }
+            h1 {
+                margin-top: 10px;
+                margin-bottom: 5px;
+            }
+            p {
+                margin-bottom: 10px;
+            }
+            .stats-table {
+                font-size: 0.7rem;
+                overflow-x: auto;
+                display: block;
+            }
+            #result {
+                margin: 10px 0;
+            }
+            #restart {
+                padding: 12px 24px;
+                max-width: 250px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            #prompt {
+                height: 30vh;
+                min-height: 150px;
+            }
+            .stats-table {
+                max-height: 120px;
+                overflow-y: auto;
+            }
+            .result {
+                padding: 8px 4px;
+            }
+        }
+        /* Comparison tables styles */
+        .comparison-wrapper {
+            width: 100%;
+            margin: 16px 0 24px 0;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        @media (min-width: 900px) {
+            .comparison-wrapper {
+                grid-template-columns: 1fr 1fr; /* duas colunas em desktop */
+                gap: 18px;
+            }
+        }
+
+        .comp-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            font-size: 0.95rem;
+        }
+
+        .comp-table caption {
+            padding: 10px 12px;
+            font-weight: 600;
+            text-align: left;
+            caption-side: top;
+            background: linear-gradient(90deg, rgba(40,167,69,0.06), rgba(0,123,255,0.03));
+            color: #155724;
+        }
+
+        .comp-table th, .comp-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .comp-table th {
+            background: #fafafa;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .comp-table tbody tr:last-child td { border-bottom: none; }
+
+        .muted { color: #6c757d; font-size: 0.9rem; }
+        .table-col { width: 100%; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Prompt no topo, ocupando toda largura e topo sem gaps ou bordas -->
+        <div id="prompt" class="wait" role="button" aria-label="Área de clique para teste de reação">Aguarde...</div>
+
+        <!-- Botão estratégico logo abaixo do prompt, proeminente e central -->
+        <button id="restart" onclick="startSession()">Iniciar Teste</button>
+
+        <!-- Conteúdo restante abaixo, com wrapper para padding lateral -->
+        <div class="content-wrapper">
+            <h1>Teste de Tempo de Reação</h1>
+            <p>Toque ou clique assim que vir "Clique Agora!"</p>
+            
+            <!-- Container dinâmico para tabelas comparativas e resultados do usuário -->
+            <div id="comparison" class="comparison-wrapper">
+                <!-- As tabelas serão injetadas aqui via JavaScript para mostrar: -->
+                <!-- 1) Referência por categoria com % da população em cada faixa -->
+                <!-- 2) Seus resultados (Melhor / Média / Pior) com percentil e z-score -->
+            </div>
+
+            <!-- Tabela comparativa original (restaurada) -->
+            <table class="stats-table" role="table">
+                <caption>Tabela Comparativa de Tempos de Reação Visual (baseado em estudo com 81 milhões de testes)</caption>
+                <thead>
+                    <tr>
+                        <th>Categoria</th>
+                        <th>Tempo (ms)</th>
+                        <th>Descrição</th>
+                        <th>Percentil Aproximado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Excelente</td>
+                        <td>&lt; 200</td>
+                        <td>Muito rápido, típico de gamers treinados</td>
+                        <td>&gt; 90%</td>
+                    </tr>
+                    <tr>
+                        <td>Bom</td>
+                        <td>200 - 250</td>
+                        <td>Acima da média, bom condicionamento</td>
+                        <td>70% - 90%</td>
+                    </tr>
+                    <tr>
+                        <td>Médio</td>
+                        <td>250 - 300</td>
+                        <td>Média para adultos saudáveis</td>
+                        <td>30% - 70%</td>
+                    </tr>
+                    <tr>
+                        <td>Ruim</td>
+                        <td>&gt; 300</td>
+                        <td>Pode indicar fadiga ou distração</td>
+                        <td>&lt; 30%</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div id="result" style="display: none;"></div>
+            <div id="best-time"></div>
+        </div>
+    </div>
+
+    <script>
+        let gameState = 'waiting'; // 'waiting', 'ready', 'done'
+        let startTime = 0;
+        let bestTime = localStorage.getItem('bestReactionTime') || Infinity;
+        let currentTrial = 1;
+        const totalTrials = 3;
+        let trialTimes = [];
+        let timeoutId = null;
+        const MU = 273; // Mediana em ms
+        const SIGMA = 60; // Desvio padrão aproximado
+
+        // Função aproximada para percentil (100 * (1 - norm.cdf(time)))
+        // Usando aproximação simples de erf para norm.cdf
+        function erf(x) {
+            const a1 =  0.254829592;
+            const a2 = -0.284496736;
+            const a3 =  1.421413741;
+            const a4 = -1.453152027;
+            const a5 =  1.061405429;
+            const p  =  0.3275911;
+            const sign = (x >= 0) ? 1 : -1;
+            x = Math.abs(x);
+            const t = 1.0 / (1.0 + p * x);
+            const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+            return sign * y;
+        }
+
+        function normCdf(x, mu, sigma) {
+            return 0.5 * (1 + erf((x - mu) / (sigma * Math.sqrt(2))));
+        }
+
+        function getPercentile(time) {
+            const cdf = normCdf(time, MU, SIGMA);
+            return Math.round(100 * (1 - cdf)); // % melhor que (pessoas mais lentas)
+        }
+
+        function getCategory(time) {
+            if (time < 200) return 'Excelente';
+            if (time < 250) return 'Bom';
+            if (time < 300) return 'Médio';
+            return 'Ruim';
+        }
+
+        function updateGlobalBest(time) {
+            if (time < bestTime) {
+                bestTime = time;
+                localStorage.setItem('bestReactionTime', bestTime);
+            }
+            document.getElementById('best-time').innerHTML = `Melhor tempo global: ${bestTime} ms (${getPercentile(bestTime)}% percentil)`;
+        }
+
+        function showSummary() {
+            if (trialTimes.length < totalTrials) return; // Não deve acontecer
+            const times = [...trialTimes];
+            const best = Math.min(...times);
+            const worst = Math.max(...times);
+            const avg = times.reduce((a, b) => a + b, 0) / times.length;
+            const bestPerc = getPercentile(best);
+            const avgPerc = getPercentile(avg);
+            const worstPerc = getPercentile(worst);
+            const prompt = document.getElementById('prompt');
+            prompt.className = 'result';
+            // Novo layout do resumo: grid compacto, sem botão de refazer (use o botão principal abaixo)
+            prompt.innerHTML = 
+                `<strong>Resumo — ${totalTrials} testes válidos</strong>` +
+                `<div class="summary-grid" role="list">` +
+                    `<div class="summary-row" role="listitem">` +
+                        `<div class="summary-label">Melhor</div>` +
+                        `<div class="summary-value">${Math.round(best)} <span class="summary-meta">ms · ${getCategory(best)} · ${bestPerc}%</span></div>` +
+                    `</div>` +
+                    `<div class="summary-row" role="listitem">` +
+                        `<div class="summary-label">Média</div>` +
+                        `<div class="summary-value">${Math.round(avg)} <span class="summary-meta">ms · ${getCategory(avg)} · ${avgPerc}%</span></div>` +
+                    `</div>` +
+                    `<div class="summary-row" role="listitem">` +
+                        `<div class="summary-label">Pior</div>` +
+                        `<div class="summary-value">${Math.round(worst)} <span class="summary-meta">ms · ${getCategory(worst)} · ${worstPerc}%</span></div>` +
+                    `</div>` +
+                `</div>`;
+            // Atualiza global best se necessário
+            updateGlobalBest(best);
+            // Preenche as tabelas comparativas com os dados calculados
+            renderComparisonTables(best, avg, worst);
+        }
+
+        function startSession() {
+            currentTrial = 1;
+            trialTimes = [];
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('restart').textContent = 'Iniciar Teste';
+            updateGlobalBest(bestTime); // Mostra global inicial
+            // Limpa tabelas comparativas ao reiniciar a sessão
+            const comp = document.getElementById('comparison');
+            if (comp) comp.innerHTML = '';
+            startGame();
+        }
+
+        function startGame() {
+            if (currentTrial > totalTrials) {
+                showSummary();
+                return;
+            }
+            // Reset UI para trial atual
+            const prompt = document.getElementById('prompt');
+            prompt.className = 'wait';
+            prompt.innerHTML = `Aguarde... (${currentTrial}/${totalTrials})`;
+            prompt.style.display = 'flex';
+            gameState = 'waiting';
+            if (timeoutId) clearTimeout(timeoutId);
+
+            // Delay aleatório 1-5 segundos para precisão e imprevisibilidade
+            const delay = Math.random() * 4000 + 1000;
+            timeoutId = setTimeout(() => {
+                if (gameState === 'waiting') {
+                    gameState = 'ready';
+                    prompt.className = 'click-now';
+                    prompt.innerHTML = `Clique Agora! (${currentTrial}/${totalTrials})`;
+                    // Timestamp de alta precisão: performance.now() para ms sub-milissegundo
+                    startTime = performance.now();
+                }
+            }, delay);
+        }
+
+        // Render dynamic comparison tables: reference distribution and user's metrics
+        function renderComparisonTables(best, avg, worst) {
+            const container = document.getElementById('comparison');
+            const categories = [
+                { label: 'Excelente', min: 0, max: 200 },
+                { label: 'Bom', min: 200, max: 250 },
+                { label: 'Médio', min: 250, max: 300 },
+                { label: 'Ruim', min: 300, max: 10000 }
+            ];
+
+            // Reference table: % of population in each range and cutoff percentiles
+            let refHtml = `<table class="comp-table" role="table"><caption>Referência por Categoria (distribuição)</caption><thead><tr><th>Categoria</th><th>Faixa (ms)</th><th>% da População</th><th>% Mais Rápido que limite</th></tr></thead><tbody>`;
+            categories.forEach(cat => {
+                const lowerCdf = normCdf(cat.min, MU, SIGMA);
+                const upperCdf = normCdf(cat.max === 10000 ? cat.max : cat.max, MU, SIGMA);
+                const inRange = Math.max(0, (upperCdf - lowerCdf) * 100);
+                const fasterThanUpper = 100 * (1 - upperCdf);
+                refHtml += `<tr><td>${cat.label}</td><td>${cat.min}${cat.max<10000?(' - ' + cat.max): '+'}</td><td>${inRange.toFixed(1)}%</td><td>${Math.round(fasterThanUpper)}%</td></tr>`;
+            });
+            refHtml += `</tbody></table>`;
+
+            // User results table
+            function fmt(n) { return (Math.round(n*10)/10); }
+            const bestZ = ((best - MU) / SIGMA).toFixed(2);
+            const avgZ = ((avg - MU) / SIGMA).toFixed(2);
+            const worstZ = ((worst - MU) / SIGMA).toFixed(2);
+            const bestP = getPercentile(best);
+            const avgP = getPercentile(avg);
+            const worstP = getPercentile(worst);
+
+            let userHtml = `<table class="comp-table" role="table"><caption>Seus Resultados</caption><thead><tr><th>Métrica</th><th>Tempo (ms)</th><th>Categoria</th><th>Percentil (%)</th><th>Z-score</th></tr></thead><tbody>`;
+            userHtml += `<tr><td>Melhor</td><td>${Math.round(best)}</td><td>${getCategory(best)}</td><td>${bestP}</td><td>${bestZ}</td></tr>`;
+            userHtml += `<tr><td>Média</td><td>${Math.round(avg)}</td><td>${getCategory(avg)}</td><td>${avgP}</td><td>${avgZ}</td></tr>`;
+            userHtml += `<tr><td>Pior</td><td>${Math.round(worst)}</td><td>${getCategory(worst)}</td><td>${worstP}</td><td>${worstZ}</td></tr>`;
+            userHtml += `</tbody></table>`;
+
+            // Highlight (small table) with distribution stats for your trials
+            let trialsHtml = `<table class="comp-table" role="table"><caption>Estatísticas da Sessão</caption><thead><tr><th>Itens</th><th>Valor</th></tr></thead><tbody>`;
+            const sd = (() => {
+                const mean = avg;
+                const variance = trialTimes.reduce((a,b)=>a+Math.pow(b-mean,2),0)/trialTimes.length;
+                return Math.sqrt(variance);
+            })();
+            trialsHtml += `<tr><td>Desvio Padrão</td><td>${sd.toFixed(1)} ms</td></tr>`;
+            trialsHtml += `<tr><td>Total de Tentativas</td><td>${trialTimes.length}</td></tr>`;
+            trialsHtml += `</tbody></table>`;
+
+            container.innerHTML = `<div class="table-col">${refHtml}</div><div class="table-col">${userHtml}${trialsHtml}</div>`;
+        }
+
+        function handleClick() {
+            const prompt = document.getElementById('prompt');
+            if (gameState === 'waiting') {
+                // Clique prematuro: reinicia trial atual após breve pausa
+                clearTimeout(timeoutId);
+                gameState = 'done';
+                prompt.className = 'too-soon';
+                prompt.innerHTML = `Muito Cedo! (${currentTrial}/${totalTrials})`;
+                // Reinicia trial após 1s para dar feedback
+                setTimeout(() => {
+                    startGame();
+                }, 1000);
+            } else if (gameState === 'ready') {
+                // Tempo de reação preciso: diferença direta de performance.now()
+                const reactionTime = performance.now() - startTime;
+                // Validação: ignora se > 2000ms (provável erro), mas raro
+                if (reactionTime > 2000) {
+                    prompt.innerHTML = `Clique muito lento! (${currentTrial}/${totalTrials})`;
+                    setTimeout(() => startGame(), 1000);
+                    return;
+                }
+                trialTimes.push(reactionTime);
+                gameState = 'done';
+                clearTimeout(timeoutId);
+                // Feedback breve antes do próximo
+                prompt.className = 'wait';
+                prompt.innerHTML = `Bom! ${Math.round(reactionTime)} ms (${currentTrial}/${totalTrials})`;
+                // Avança para próximo trial ou summary
+                setTimeout(() => {
+                    if (currentTrial < totalTrials) {
+                        currentTrial++;
+                        startGame();
+                    } else {
+                        showSummary();
+                    }
+                }, 1500); // Pausa de 1.5s entre trials para UX
+            }
+        }
+
+        // Listeners para clique e toque (alta precisão, sem debounce para evitar atrasos)
+        const prompt = document.getElementById('prompt');
+        prompt.addEventListener('click', handleClick, { passive: false });
+        prompt.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Previne scroll ou zoom em mobile
+            handleClick();
+        }, { passive: false });
+
+        // Suporte a teclado para acessibilidade
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && gameState !== 'done') {
+                e.preventDefault();
+                handleClick();
+            }
+        });
+
+        // Inicializa: botão pronto para teste
+        updateGlobalBest(bestTime);
+    </script>
+</body>
+</html>
