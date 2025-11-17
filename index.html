@@ -472,7 +472,7 @@
     </div>
 
     <script>
-        let gameState = 'waiting'; // 'waiting', 'ready', 'done'
+        let gameState = 'idle'; // 'idle', 'waiting', 'ready', 'done'
         let startTime = 0;
         let bestTime = localStorage.getItem('bestReactionTime') || Infinity;
         let currentTrial = 1;
@@ -550,6 +550,7 @@
                         `<div class="summary-value">${Math.round(worst)} <span class="summary-meta">ms · ${getCategory(worst)} · ${worstPerc}%</span></div>` +
                     `</div>` +
                 `</div>`;
+            gameState = 'done';
             // Atualiza global best se necessário
             updateGlobalBest(best);
             // Preenche as tabelas comparativas com os dados calculados
@@ -691,9 +692,9 @@
             handleClick();
         }, { passive: false });
 
-        // Suporte a teclado para acessibilidade
+        // Suporte a teclado para acessibilidade (apenas durante um teste ativo)
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space' && gameState !== 'done') {
+            if (e.code === 'Space' && (gameState === 'waiting' || gameState === 'ready')) {
                 e.preventDefault();
                 handleClick();
             }
